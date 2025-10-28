@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Equipotenciais — VS Code Dark</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    :root{
+      --bg:#1e1e1e; --panel:#252526; --card:#2a2a2a; --title:#3c3c3c; --border:#3c3c3c;
+      --text:#d4d4d4; --muted:#9da1a6; --heading:#e6e6e6; --accent:#0e639c; --accent2:#3794ff;
+      --danger:#f14c4c; --ok:#4fc1ff; --shadow:0 6px 18px rgba(0,0,0,.35); --radius:10px;
+    }
+    *{box-sizing:border-box} html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:Segoe UI, Roboto, Arial, sans-serif;display:flex;flex-direction:column}
+    .titlebar{height:36px;background:var(--title);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 12px}
+    .traffic{display:flex;gap:8px}.traffic span{width:12px;height:12px;border-radius:50%}
+    .traffic .r{background:#ff5f56}.traffic .y{background:#ffbd2e}.traffic .g{background:#27c93f}
+    .title{font-weight:600;color:var(--heading)}
+    .commandbar{background:var(--panel);border-bottom:1px solid var(--border);padding:8px 12px;display:flex;gap:12px;align-items:center}
+    .cmd{flex:1;background:var(--card);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);outline:none}
+    .cmd::placeholder{color:var(--muted)}
+    .container{display:grid;grid-template-columns:320px 1fr 420px;height:calc(100vh - 36px - 42px - 24px)}
+    .left,.right{overflow-y:auto;background:var(--panel);border-right:1px solid var(--border)}
+    .right{border-right:none;border-left:1px solid var(--border)}
+    .center{display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,#1b1b1b,#181818)}
+    .controls{padding:18px}.controls h2{margin:0 0 12px;font-size:18px;color:var(--heading)}
+    .group{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:14px;box-shadow:var(--shadow)}
+    .group h4{margin:0 0 10px;color:var(--heading)}
+    label{font-weight:600;font-size:12px;color:var(--muted)}
+    input[type="text"],input[type="number"]{width:100%;margin-top:6px;margin-bottom:10px;background:#1b1b1b;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px 10px;outline:none}
+    input:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(14,99,156,.35)}
+    .info{font-size:11px;color:var(--muted)}
+    .btn{width:100%;padding:12px 14px;border-radius:8px;border:1px solid transparent;background:linear-gradient(180deg,var(--accent2),var(--accent));color:white;font-weight:700;cursor:pointer;margin-top:6px;box-shadow:var(--shadow)}
+    .assistant{position:sticky;top:18px;margin:18px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow)}
+    .assistant .bubble{background:#1b2a35;border:1px solid #0b3248;color:#cff0ff;border-radius:10px;padding:10px 12px}
+    .status{height:24px;background:#007acc;color:white;display:flex;align-items:center;gap:18px;padding:0 12px;font-size:12px}
+    #chart{width:100%;height:100%}
+    .axis path,.axis line{stroke:#555}.axis text{fill:#bbb}
+    .equip{fill:none;stroke:#a0a0a0;stroke-width:1.2px}
+    .charge{stroke:#111;stroke-width:1.2px}
+    .step{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px;margin:10px 18px}
+  </style>
+</head>
+<body>
+  <div class="titlebar"><div class="traffic"><span class="r"></span><span class="y"></span><span class="g"></span></div><div class="title">Equipotenciais • VS Code Dark</div></div>
+  <div class="commandbar"><input class="cmd" placeholder="⌘K ⌘P Pesquisar comando… (decorativo)"/></div>
+
+  <div class="container">
+    <aside class="left">
+      <div class="controls">
+        <h2>Explorador</h2>
+        <form method="post">
+          <div class="group">
+            <h4>⚡ Carga 1</h4>
+            <label for="q1">Valor (C) — ex.: 1e-9 para 1 nC</label>
+            <input type="text" id="q1" name="q1" value="{{ form_data.q1 }}"/>
+            <label for="x1">Posição X (m)</label>
+            <input type="number" id="x1" name="x1" value="{{ form_data.x1 }}" step="0.1"/>
+            <label for="y1">Posição Y (m)</label>
+            <input type="number" id="y1" name="y1" value="{{ form_data.y1 }}" step="0.1"/>
+          </div>
+
+          <div class="group">
+            <h4>⚡ Carga 2</h4>
+            <label for="q2">Valor (C) — ex.: -1e-9 para -1 nC</label>
+            <input type="text" id="q2" name="q2" value="{{ form_data.q2 }}"/>
+            <label for="x2">Posição X (m)</label>
+            <input type="number" id="x2" name="x2" value="{{ form_data.x2 }}" step="0.1"/>
+            <label for="y2">Posição Y (m)</label>
+            <input type="number" id="y2" name="y2" value="{{ form_data.y2 }}" step="0.1"/>
+          </div>
+
+          <div class="group">
+            <h4>Linhas</h4>
+            <label for="nlevels">Quantidade de equipotenciais (6–30)</label>
+            <input type="number" id="nlevels" name="nlevels" value="{{ form_data.nlevels }}" min="6" max="30"/>
+          </div>
+
+          <button class="btn" type="submit">Atualizar Simulação</button>
+        </form>
+      </div>
+    </aside>
+
+    <main class="center">
+      <div id="chart"></div>
+    </main>
+
+    <aside class="right">
+      <div class="assistant">
+        <div class="bubble">
+          <strong>{{ form_data.professor_name }}</strong>
+          <p style="margin:.4rem 0 0"><b>Linhas equipotenciais</b> são curvas onde o potencial elétrico \(V\) é constante.</p>
+          <ul style="margin:.4rem 0 0 18px;">
+            <li>São <b>perpendiculares</b> às linhas do campo \( \vec{E} \).</li>
+            <li>Quanto mais próximas, <b>maior</b> a intensidade de \( \vec{E} \).</li>
+            <li>Não indicam sentido — apenas “altitude” de \(V\).</li>
+          </ul>
+          <p style="margin:.4rem 0 0">Ajuste as cargas e o número de níveis na esquerda.</p>
+        </div>
+      </div>
+      <div class="step"><b>1) Defina as cargas</b> — valores e posições.</div>
+      <div class="step"><b>2) Potencial</b> — \( V=\sum \frac{1}{4\pi\varepsilon_0}\frac{q_i}{r_i} \) (com suavização perto das cargas).</div>
+      <div class="step"><b>3) Contorno</b> — usamos <i>marching squares</i> para extrair as curvas \(V=\text{const}\).</div>
+      <div class="step"><b>4) Visualização</b> — D3.js desenha as equipotenciais animadas.</div>
+    </aside>
+  </div>
+
+  <div class="status"><span>◷ Flask</span><span>• D3 v7</span><span>• Tema Dark+</span><span style="margin-left:auto">UTF-8 | LF</span></div>
+
+  <script>
+    const data = {{ simulation_data | safe }};
+    const margin = {top: 40, right: 40, bottom: 40, left: 40};
+    const size = Math.min(window.innerWidth, window.innerHeight) - 140;
+    const width = Math.max(700, size) - margin.left - margin.right;
+    const height = Math.max(700, size) - margin.top - margin.bottom;
+    const domainRange = 2.1;
+
+    const svg = d3.select("#chart").append("svg")
+      .attr("width", width + margin.left + margin.right)
+      .attr("height", height + margin.top + margin.bottom)
+      .append("g").attr("transform", `translate(${margin.left}, ${margin.top})`);
+
+    const xScale = d3.scaleLinear().domain([-domainRange, domainRange]).range([0, width]);
+    const yScale = d3.scaleLinear().domain([-domainRange, domainRange]).range([height, 0]);
+
+    svg.append("g").attr("class","axis").attr("transform",`translate(0,${height})`).call(d3.axisBottom(xScale).ticks(9));
+    svg.append("g").attr("class","axis").call(d3.axisLeft(yScale).ticks(9));
+
+    const line = d3.line().x(d=>xScale(d[0])).y(d=>yScale(d[1]));
+    const paths = svg.selectAll(".equip").data(data.equipotentials).enter().append("path")
+      .attr("class","equip").attr("d",d=>line(d.line)).attr("stroke-dasharray","8,6");
+    let off=0; (function anim(){off+=0.35;paths.attr("stroke-dashoffset",off);requestAnimationFrame(anim);})();
+
+    // charges: red for +, blue for - with '+'/'−' glyphs
+    const gC = svg.selectAll(".charge").data(data.charges).enter().append("g");
+    gC.append("circle").attr("class","charge")
+      .attr("cx",d=>xScale(d.pos[0])).attr("cy",d=>yScale(d.pos[1])).attr("r",10)
+      .attr("fill", d=> d.q>=0 ? "#f14c4c" : "#4fc1ff");
+    gC.append("text")
+      .attr("x",d=>xScale(d.pos[0])).attr("y",d=>yScale(d.pos[1])+4)
+      .attr("text-anchor","middle").attr("font-size","14px").attr("fill","#111")
+      .text(d=> d.q>=0 ? "+" : "−");
+  </script>
+</body>
+</html>

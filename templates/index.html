@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simulação de Campo Elétrico — VS Code Dark</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    :root{
+      /* VS Code Dark+ palette */
+      --vscode-bg:#1e1e1e;
+      --vscode-panel:#252526;
+      --vscode-panel-2:#2d2d2d;
+      --vscode-card:#2a2a2a;
+      --vscode-titlebar:#3c3c3c;
+      --vscode-border:#3c3c3c;
+      --vscode-muted:#9da1a6;
+      --vscode-text:#d4d4d4;
+      --vscode-heading:#e6e6e6;
+      --vscode-accent:#0e639c;
+      --vscode-accent-2:#3794ff;
+      --vscode-danger:#f14c4c;
+      --shadow:0 6px 18px rgba(0,0,0,.35);
+      --radius:10px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      background:var(--vscode-bg);
+      color:var(--vscode-text);
+      display:flex;flex-direction:column;
+    }
+
+    /* Title bar (fake VS Code) */
+    .titlebar{
+      height:36px;
+      background:var(--vscode-titlebar);
+      border-bottom:1px solid var(--vscode-border);
+      display:flex;align-items:center;gap:10px;padding:0 12px;
+      letter-spacing:.2px;
+    }
+    .traffic{
+      display:flex;gap:8px;margin-right:4px;
+    }
+    .traffic span{width:12px;height:12px;border-radius:50%}
+    .traffic .red{background:#ff5f56}
+    .traffic .yellow{background:#ffbd2e}
+    .traffic .green{background:#27c93f}
+    .titlebar .title{font-weight:600;color:var(--vscode-heading)}
+
+    /* Command bar */
+    .commandbar{
+      background:var(--vscode-panel);
+      border-bottom:1px solid var(--vscode-border);
+      padding:8px 12px;
+      display:flex;gap:12px;align-items:center;
+    }
+    .cmd-input{
+      flex:1;
+      background:var(--vscode-card);
+      border:1px solid var(--vscode-border);
+      border-radius:6px;padding:8px 10px;
+      color:var(--vscode-text);
+      outline:none;
+    }
+    .cmd-input::placeholder{color:var(--vscode-muted)}
+
+    /* Main layout */
+    .container{
+      display:grid;
+      grid-template-columns: 320px 1fr 360px;
+      height:calc(100vh - 36px - 42px - 24px); /* minus title, command, status */
+    }
+    .left, .right{
+      overflow-y:auto;
+      background:var(--vscode-panel);
+      border-right:1px solid var(--vscode-border);
+    }
+    .right{border-right:none;border-left:1px solid var(--vscode-border)}
+    .center{
+      display:flex;align-items:center;justify-content:center;position:relative;
+      background:linear-gradient(180deg, #1b1b1b, #181818);
+    }
+
+    /* Sidebar (settings) */
+    .controls{padding:18px}
+    .controls h2{margin:0 0 12px;font-size:18px;color:var(--vscode-heading)}
+    .group{background:var(--vscode-card);border:1px solid var(--vscode-border);border-radius:var(--radius);padding:14px;margin-bottom:14px;box-shadow:var(--shadow)}
+    .group h4{margin:0 0 10px;color:var(--vscode-heading)}
+    label{font-weight:600;font-size:12px;color:var(--vscode-muted)}
+    input[type="text"],input[type="number"]{
+      width:100%;margin-top:6px;margin-bottom:10px;
+      background:#1b1b1b;border:1px solid var(--vscode-border);color:var(--vscode-text);
+      border-radius:6px;padding:8px 10px;outline:none;
+    }
+    input:focus{border-color:var(--vscode-accent);box-shadow:0 0 0 2px rgba(14,99,156,.35)}
+    .info{font-size:11px;color:var(--vscode-muted)}
+
+    .btn{
+      width:100%;padding:12px 14px;border-radius:8px;border:1px solid transparent;
+      background:linear-gradient(180deg,var(--vscode-accent-2),var(--vscode-accent));
+      color:white;font-weight:700;cursor:pointer;margin-top:6px;
+      box-shadow:var(--shadow);
+    }
+    .btn:active{transform:translateY(1px)}
+
+    /* Right panel (flow/assistant) */
+    .flow{padding:18px}
+    .flow h3{margin:0 0 12px;color:var(--vscode-heading);border-bottom:1px solid var(--vscode-border);padding-bottom:8px}
+    .assistant{
+      position:sticky;top:18px;margin-bottom:14px;background:var(--vscode-card);
+      border:1px solid var(--vscode-border);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);
+      display:flex;gap:12px;align-items:center;
+    }
+    .assistant video{width:88px;height:88px;border-radius:50%;border:2px solid var(--vscode-accent)}
+    .bubble{flex:1;background:#1b2a35;border:1px solid #0b3248;color:#cff0ff;border-radius:10px;padding:10px 12px}
+    .assistant .control{
+      padding:8px 12px;border-radius:6px;border:1px solid var(--vscode-accent);
+      background:transparent;color:var(--vscode-accent);font-weight:700;cursor:pointer
+    }
+    .assistant .control.playing{border-color:var(--vscode-danger);color:var(--vscode-danger)}
+
+    .step{
+      position:relative;background:var(--vscode-card);border:1px solid var(--vscode-border);
+      border-radius:10px;padding:12px;margin:10px 0;box-shadow:var(--shadow)
+    }
+    .step.highlight{outline:2px solid var(--vscode-accent)}
+    .step:not(:last-child)::after{
+      content:"";position:absolute;left:50%;bottom:-18px;transform:translateX(-50%);
+      width:2px;height:16px;background:var(--vscode-border);
+    }
+
+    /* Chart styles */
+    #chart-container{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+    .axis path,.axis line{stroke:#555}
+    .axis text{fill:#bbb}
+    .streamline{fill:none;stroke:#a0a0a0;stroke-width:1.4px}
+    .charge{stroke:#111;stroke-width:1.2px}
+
+    /* Status bar */
+    .statusbar{
+      height:24px;background:#007acc;color:white;display:flex;align-items:center;gap:18px;padding:0 12px;
+      font-size:12px;letter-spacing:.2px;
+    }
+  </style>
+</head>
+<body>
+  <div class="titlebar">
+    <div class="traffic"><span class="red"></span><span class="yellow"></span><span class="green"></span></div>
+    <div class="title">Simulação de Campo Elétrico • VS Code Dark</div>
+  </div>
+  <div class="commandbar">
+    <input class="cmd-input" placeholder="⌘K ⌘P Pesquisar comando… (decorativo)" />
+  </div>
+
+  <div class="container">
+    <!-- LEFT: controls -->
+    <aside class="left">
+      <div class="controls">
+        <h2>Explorador</h2>
+        <form action="/" method="post">
+          <div class="group">
+            <h4>⚡ Carga 1</h4>
+            <label for="q1_val">Valor (C)</label>
+            <input type="text" id="q1_val" name="q1_val" value="{{ form_data.q1_val }}" />
+            <div class="info">Ex.: 1e-9 para 1 nC</div>
+            <label for="q1_x">Posição X (m)</label>
+            <input type="number" id="q1_x" name="q1_x" value="{{ form_data.q1_x }}" step="0.1" />
+            <label for="q1_y">Posição Y (m)</label>
+            <input type="number" id="q1_y" name="q1_y" value="{{ form_data.q1_y }}" step="0.1" />
+          </div>
+
+          <div class="group">
+            <h4>⚡ Carga 2</h4>
+            <label for="q2_val">Valor (C)</label>
+            <input type="text" id="q2_val" name="q2_val" value="{{ form_data.q2_val }}" />
+            <div class="info">Ex.: -1e-9 para -1 nC</div>
+            <label for="q2_x">Posição X (m)</label>
+            <input type="number" id="q2_x" name="q2_x" value="{{ form_data.q2_x }}" step="0.1" />
+            <label for="q2_y">Posição Y (m)</label>
+            <input type="number" id="q2_y" name="q2_y" value="{{ form_data.q2_y }}" step="0.1" />
+          </div>
+
+          <button class="btn" type="submit">Atualizar Simulação</button>
+        </form>
+      </div>
+    </aside>
+
+    <!-- CENTER: chart -->
+    <main class="center">
+      <div id="chart-container"></div>
+    </main>
+
+    <!-- RIGHT: flow/assistant -->
+    <aside class="right">
+      <div class="flow">
+        <div class="assistant">
+          <video autoplay muted loop playsinline>
+            <source src="{{ url_for('static', filename='Personagem_Animado_Explicando_Matéria.mp4') }}" type="video/mp4" />
+          </video>
+          <div class="bubble">
+            <strong>{{ form_data.professor_name }}</strong>
+            <p id="speech-text" style="margin:.4rem 0 0">Olá! Eu sou o Professor Elétron.</p>
+          </div>
+          <button id="audio-control" class="control">▶️ Ouvir</button>
+          <audio id="assistant-audio" loop>
+            <source src="{{ url_for('static', filename='Lula se emociona em discurso ao falar da volta da fome no Brasil.mp3') }}" type="audio/mpeg" />
+          </audio>
+        </div>
+
+        <h3>Como Funciona?</h3>
+        <div class="step" data-speech="Primeiro, você me diz onde as cargas estão e qual o valor delas. Simples, não?">
+          <strong>1. Definir Cargas</strong>
+          <p>O usuário define o valor e a posição das cargas no formulário.</p>
+        </div>
+        <div class="step" data-speech="Com as cargas definidas, o computador cria uma 'malha' invisível para calcular o campo.">
+          <strong>2. Criar Grade 2D</strong>
+          <p>O servidor cria uma grade invisível com milhares de pontos no espaço da simulação.</p>
+        </div>
+        <div class="step" data-speech="Em cada ponto da grade, a Lei de Coulomb me ajuda a saber a força e a direção do campo elétrico.">
+          <strong>3. Calcular Vetores</strong>
+          <p>Em cada ponto da grade, o vetor do campo é calculado.</p>
+        </div>
+        <div class="step" data-speech="Depois de ter os vetores, eu traço o caminho que uma carga de teste seguiria.">
+          <strong>4. Traçar Linhas</strong>
+          <p>Um algoritmo segue os vetores para traçar as linhas de campo.</p>
+        </div>
+        <div class="step" data-speech="Os dados dessas linhas são enviados para a sua tela para serem desenhados.">
+          <strong>5. Enviar Dados</strong>
+          <p>As coordenadas são enviadas do servidor para o navegador.</p>
+        </div>
+        <div class="step" data-speech="O navegador desenha tudo e aplica um efeito de movimento!">
+          <strong>6. Desenhar e Animar</strong>
+          <p>O D3.js desenha e anima as linhas.</p>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="statusbar">
+    <span>◷ Rodando em Flask (dev)</span>
+    <span>• D3 v7</span>
+    <span>• Tema: VS Code Dark+</span>
+    <span style="margin-left:auto">UTF-8 | LF</span>
+  </div>
+
+  <script>
+    const data = {{ simulation_data | safe }};
+
+    // D3 scaffold
+    const margin = {top: 40, right: 40, bottom: 40, left: 40};
+    const size = Math.min(window.innerWidth, window.innerHeight) - 140;
+    const width = Math.max(700, size) - margin.left - margin.right;
+    const height = Math.max(700, size) - margin.top - margin.bottom;
+    const domainRange = 2.1;
+
+    const svg = d3.select("#chart-container")
+      .append("svg")
+      .attr("width", width + margin.left + margin.right)
+      .attr("height", height + margin.top + margin.bottom)
+      .append("g")
+      .attr("transform", `translate(${margin.left}, ${margin.top})`);
+
+    const xScale = d3.scaleLinear().domain([-domainRange, domainRange]).range([0, width]);
+    const yScale = d3.scaleLinear().domain([-domainRange, domainRange]).range([height, 0]);
+
+    svg.append("g").attr("class", "axis")
+      .attr("transform", `translate(0, ${height})`)
+      .call(d3.axisBottom(xScale).ticks(9));
+
+    svg.append("g").attr("class", "axis")
+      .call(d3.axisLeft(yScale).ticks(9));
+
+    const lineGenerator = d3.line()
+      .x(d => xScale(d[0]))
+      .y(d => yScale(d[1]));
+
+    const paths = svg.selectAll(".streamline")
+      .data(data.streamlines)
+      .enter()
+      .append("path")
+      .attr("class", "streamline")
+      .attr("d", lineGenerator)
+      .attr("stroke-dasharray", "10,6");
+
+    let offset = 0;
+    function animate(){
+      offset += 0.35;
+      paths.attr("stroke-dashoffset", offset);
+      requestAnimationFrame(animate);
+    }
+    if (data.streamlines.length) animate();
+
+    // charges
+    svg.selectAll(".charge")
+      .data(data.cargas)
+      .enter()
+      .append("circle")
+      .attr("class", "charge")
+      .attr("cx", d => xScale(d.pos[0]))
+      .attr("cy", d => yScale(d.pos[1]))
+      .attr("r", 10)
+      .attr("fill", d => d.q > 0 ? "#f14c4c" : "#4fc1ff");
+
+    // Assistant controls
+    const audioControlBtn = document.getElementById("audio-control");
+    const assistantAudio = document.getElementById("assistant-audio");
+    audioControlBtn.addEventListener("click", () => {
+      if (assistantAudio.paused) {
+        assistantAudio.play();
+        audioControlBtn.textContent = "⏸️ Pausar";
+        audioControlBtn.classList.add("playing");
+      } else {
+        assistantAudio.pause();
+        audioControlBtn.textContent = "▶️ Ouvir";
+        audioControlBtn.classList.remove("playing");
+      }
+    });
+
+    // Flow speech sync
+    const speechTextElement = document.getElementById("speech-text");
+    const steps = [...document.querySelectorAll(".step")];
+    let currentSpeechIndex = -1, speechTimeout;
+
+    function showIntro(){
+      speechTextElement.textContent = "Olá! Eu sou o Professor Elétron. Veja como a simulação funciona!";
+      currentSpeechIndex = -1;
+    }
+    function updateSpeech(i){
+      clearTimeout(speechTimeout);
+      steps.forEach(s => s.classList.remove("highlight"));
+      if (i < 0 || i >= steps.length){ showIntro(); return; }
+      const step = steps[i];
+      step.classList.add("highlight");
+      speechTextElement.textContent = step.dataset.speech || "Sem explicação para este passo.";
+      currentSpeechIndex = i;
+      speechTimeout = setTimeout(() => updateSpeech((currentSpeechIndex + 1) % steps.length), 7000);
+    }
+    const flow = document.querySelector(".right");
+    flow.addEventListener("scroll", () => {
+      let active = -1;
+      steps.forEach((s, idx) => {
+        const r = s.getBoundingClientRect();
+        const f = flow.getBoundingClientRect();
+        const c = r.top + r.height/2;
+        if (c > f.top + f.height*0.2 && c < f.top + f.height*0.8) active = idx;
+      });
+      if (active !== -1 && active !== currentSpeechIndex) updateSpeech(active);
+      else if (active === -1 && currentSpeechIndex !== -1) showIntro();
+    });
+    showIntro();
+    speechTimeout = setTimeout(() => updateSpeech(0), 3000);
+  </script>
+</body>
+</html>
